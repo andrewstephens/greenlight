@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	_ "github.com/lib/pq"
+	"greenlight/internal/data"
 	"log/slog"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ type config struct {
 type application struct {
 	config config
 	logger *slog.Logger
+	models data.Models
 }
 
 func main() {
@@ -46,9 +48,20 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	db, err := openDB(cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	defer db.Close()
+
+	logger.Info("database connection pool established")
+
 	app := &application{
 		config: cfg,
 		logger: logger,
+		models: data.NewModels(db),
 	}
 
 	srv := &http.Server{
@@ -62,16 +75,6 @@ func main() {
 
 	// Start the HTTP server
 	logger.Info("starting server", "addr", srv.Addr, "env", cfg.env)
-
-	db, err := openDB(cfg)
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-
-	defer db.Close()
-
-	logger.Info("database connection pool established")
 
 	err = srv.ListenAndServe()
 	logger.Error(err.Error())
